@@ -1,0 +1,38 @@
+"AppState"
+{
+	"appid"		"632470"
+	"Universe"		"1"
+	"name"		"Disco Elysium"
+	"StateFlags"		"4"
+	"installdir"		"Disco Elysium"
+	"LastUpdated"		"1629758106"
+	"UpdateResult"		"0"
+	"SizeOnDisk"		"19298608743"
+	"buildid"		"6698954"
+	"LastOwner"		"76561197993480238"
+	"BytesToDownload"		"305680"
+	"BytesDownloaded"		"305680"
+	"BytesToStage"		"485506079"
+	"BytesStaged"		"485506079"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"632471"
+		{
+			"manifest"		"1313276599614080325"
+			"size"		"19298608743"
+		}
+	}
+	"SharedDepots"
+	{
+		"228985"		"228980"
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+		"platform_override_dest"		"linux"
+		"platform_override_source"		"windows"
+	}
+}

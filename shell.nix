@@ -3,6 +3,8 @@ with pkgs;
 mkShell {
   name = "acf";
   buildInputs = [
-    rustup
+    rustc
+    cargo
+    rls
   ];
 }
