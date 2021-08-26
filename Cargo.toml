@@ -8,6 +8,8 @@ documentation = "https://github.com/chisui/acf"
 readme = "README.md"
 version = "0.1.0"
 edition = "2018"
+keywords = ["steam", "acf", "json"]
+categories = ["command-line-utilities", "config", "games"]
 
 [[bin]]
 name = "acf"
