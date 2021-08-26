@@ -1,7 +1,11 @@
 [package]
-name = "acf"
+name = "steam-acf"
 version = "0.1.0"
 edition = "2018"
+
+[[bin]]
+name = "acf"
+path = "src/main.rs"
 
 [dependencies]
 structopt = "0.3"
