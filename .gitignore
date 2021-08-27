@@ -1,9 +1,5 @@
 
-# testdata
-/test.bsa
-
 # Added by cargo
 
-/target
+**/target
 
-/index*
