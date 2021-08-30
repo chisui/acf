@@ -28,6 +28,44 @@ impl fmt::Display for UnexpectedToken {
 }
 
 pub struct AcfTokenReader<R: Read>(pub R);
+impl<R: Read> AcfTokenReader<R> {
+    pub fn skip_to_field(&mut self, target: &str) -> Result<Option<AcfToken>> {
+        while let Some(t) = self.next() {
+            match t? {
+                AcfToken::String(field) => if field == target {
+                    return self.expect_next().map(Some);
+                }
+                AcfToken::DictEnd => { break; }
+                _ => {}
+            }
+            self.skip_field_value(0)?;
+        }
+        Ok(None)
+    }
+    pub fn expect_next(&mut self) -> Result<AcfToken> {
+        let t = next_non_whitespace_char(&mut self.0)?;
+        match t {
+            '{' => Ok(AcfToken::DictStart),
+            '}' => Ok(AcfToken::DictEnd),
+            '"' => parse_str(&mut self.0).map(AcfToken::String),
+            c => Err(Error::new(ErrorKind::Other, UnexpectedCharacter(c))),
+        }
+    }
+    pub fn skip_field_value(&mut self, current_depth: i64) -> Result<()> {
+        let mut depth = current_depth;
+        while let Some(t) = self.next() {
+            match t? {
+                AcfToken::String(_) => {}
+                AcfToken::DictStart => { depth += 1; }
+                AcfToken::DictEnd   => { depth -= 1; }
+            }
+            if depth == 0 {
+                break;
+            }
+        }
+        Ok(())
+    }
+}
 fn next_char<R: Read>(mut reader: R) -> Result<char> {
     let mut buf: [u8; 1] = [0];
     reader.read_exact(&mut buf)?;
