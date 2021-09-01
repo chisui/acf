@@ -1,5 +1,6 @@
 use std::io::{Error, ErrorKind, Result};
 use std::collections::HashMap;
+use std::array::IntoIter;
 use std::env;
 use std::str;
 use std::fmt;
@@ -8,7 +9,7 @@ use std::process::{Command, Stdio};
 use std::fs::File;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use steamacf::{AcfTokenReader, AcfToken, UnexpectedToken};
+use steamacf::{AcfTokenStream, AcfToken, UnexpectedToken};
 
 
 #[derive(Debug, StructOpt)]
@@ -92,23 +93,20 @@ impl SteamLaunchCtx {
         reg_file.push("registry.vdf");
         
         let f = File::open(reg_file)?;
-        let mut tokens = AcfTokenReader(f);
+        let mut tokens = AcfTokenStream::new(f);
+        tokens.select_path(IntoIter::new(["Registry", "HKCU", "Software", "Valve", "Steam", "Apps"]))
+            .map(|r| r.ok_or(Error::new(ErrorKind::NotFound, "Registry.HKCU.Software.Valve.Steam.Apps")))??;
 
-        for field in ["Registry", "HKCU", "Software", "Valve", "Steam", "Apps"] {
-            if let None = tokens.skip_to_field(field)? {
-                return Err(Error::new(ErrorKind::NotFound, field));
-            }
-        }
-        
+        tokens.expect(AcfToken::DictStart)?;
         let mut reg = HashMap::new();
-        while let Some(Ok(AcfToken::String(id))) = tokens.next() {
-            tokens.expect_next()?;
-            if let Some(t) = tokens.skip_to_field("name")? {
-                match t {
+        while let Some(AcfToken::String(id)) = tokens.try_next()? {
+            tokens.expect(AcfToken::DictStart)?;
+            if let Some(_) = tokens.select("name")? {
+                match tokens.expect_next()? {
                     AcfToken::String(name) => { reg.insert(name, id); },
-                    t => { return Err(Error::new(ErrorKind::Other, UnexpectedToken(t))); },
+                    t => { return UnexpectedToken(t).into(); },
                 }
-                tokens.skip_field_value(1)?;
+                tokens.close_dict()?;
             }
         }
         Ok(SteamRegistry(reg))
