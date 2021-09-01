@@ -94,8 +94,7 @@ impl SteamLaunchCtx {
         
         let f = File::open(reg_file)?;
         let mut tokens = AcfTokenStream::new(f);
-        tokens.select_path(IntoIter::new(["Registry", "HKCU", "Software", "Valve", "Steam", "Apps"]))
-            .map(|r| r.ok_or(Error::new(ErrorKind::NotFound, "Registry.HKCU.Software.Valve.Steam.Apps")))??;
+        tokens.select_path(IntoIter::new(["Registry", "HKCU", "Software", "Valve", "Steam", "Apps"]))?;
 
         tokens.expect(AcfToken::DictStart)?;
         let mut reg = HashMap::new();
@@ -104,7 +103,7 @@ impl SteamLaunchCtx {
             if let Some(_) = tokens.select("name")? {
                 match tokens.expect_next()? {
                     AcfToken::String(name) => { reg.insert(name, id); },
-                    t => { return UnexpectedToken(t).into(); },
+                    t => { return Err(UnexpectedToken(t).into()); },
                 }
                 tokens.close_dict()?;
             }

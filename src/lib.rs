@@ -19,9 +19,9 @@ impl fmt::Display for UnexpectedCharacter {
         write!(f, "Unexpected Character '{:?}'", self.0)
     }
 }
-impl<A> From<UnexpectedCharacter> for Result<A> {
+impl From<UnexpectedCharacter> for Error {
     fn from(err: UnexpectedCharacter) -> Self {
-        Err(Error::new(ErrorKind::InvalidData, err))
+        Error::new(ErrorKind::InvalidData, err)
     }
 }
 #[derive(Debug)]
@@ -32,9 +32,9 @@ impl fmt::Display for UnexpectedToken {
         write!(f, "Unexpected Token {:?}", self.0)
     }
 }
-impl<A> From<UnexpectedToken> for Result<A> {
+impl From<UnexpectedToken> for Error {
     fn from(err: UnexpectedToken) -> Self {
-        Err(Error::new(ErrorKind::InvalidData, err))
+        Error::new(ErrorKind::InvalidData, err)
     }
 }
 #[derive(Debug)]
@@ -45,11 +45,30 @@ impl fmt::Display for UnterminatedString {
         write!(f, "Unterminated String literal")
     }
 }
-impl<A> From<UnterminatedString> for Result<A> {
+impl From<UnterminatedString> for Error {
     fn from(err: UnterminatedString) -> Self {
-        Err(Error::new(ErrorKind::InvalidData, err))
+        Error::new(ErrorKind::InvalidData, err)
     }
 }
+
+#[derive(Debug)]
+pub struct PathNotFound(pub Vec<String>);
+impl error::Error for PathNotFound {}
+impl fmt::Display for PathNotFound {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Path not found ")?;
+        for p in &self.0 {
+            write!(f, ".{}", p)?;
+        }
+        Ok(())
+    }
+}
+impl From<PathNotFound> for Error {
+    fn from(err: PathNotFound) -> Self {
+        Error::new(ErrorKind::InvalidData, err)
+    }
+}
+
 
 pub struct AcfTokenStream<R: Read>{
     read: R,
@@ -74,7 +93,7 @@ impl<R: Read> AcfTokenStream<R> {
             }
             Some('"') => parse_str(&mut self.read)
                 .map(|o| o.map(AcfToken::String)),
-            Some(c) => UnexpectedCharacter(c).into(),
+            Some(c) => Err(UnexpectedCharacter(c).into()),
             None => Ok(None)
         }
     }
@@ -87,7 +106,7 @@ impl<R: Read> AcfTokenStream<R> {
         if t == token {
             Ok(())
         } else {
-            UnexpectedToken(t).into()
+            Err(UnexpectedToken(t).into())
         }
     }
     pub fn select(&mut self, target: impl AsRef<str>) -> Result<Option<()>> {
@@ -102,9 +121,9 @@ impl<R: Read> AcfTokenStream<R> {
         }
         Ok(None)
     }
-    pub fn select_path(
+    pub fn try_select_path(
         &mut self,
-        path: impl Iterator<Item = impl AsRef<str>>,
+        path: impl IntoIterator<Item = impl AsRef<str>>,
     ) -> Result<Option<()>> {
         let mut not_first = false;
         for field in path {
@@ -119,6 +138,16 @@ impl<R: Read> AcfTokenStream<R> {
             }
         }
         Ok(Some(()))
+    }
+    pub fn select_path(
+        &mut self,
+        path: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Result<()> {
+        let path_vec: Vec<String> = path.into_iter()
+                .map(|s| s.as_ref().to_owned())
+                .collect();
+        let r = self.try_select_path(path_vec.clone())?;
+        r.ok_or_else(|| Error::from(PathNotFound(path_vec)))
     }
     pub fn close_dict(&mut self) -> Result<()> {
         self.skip_to_depth(self.depth - 1)
@@ -163,7 +192,7 @@ fn parse_str<R: Read>(mut reader: R) -> Result<Option<String>> {
             }
             // TODO: handle escape sequences and utf8?
             Some(c) => buf.push(c as u8),
-            None => { return UnterminatedString.into(); }
+            None => { return Err(UnterminatedString.into()); }
         }
     }
 }
