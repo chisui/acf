@@ -2,7 +2,7 @@ use std::io::{self, Result};
 use std::fs::File;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use steamacf::AcfTokenReader;
+use steamacf::AcfTokenStream;
 mod json;
 use crate::json::JsonWriter;
 
@@ -27,7 +27,7 @@ struct AcfArgs {
 fn main() -> Result<()> {
     let args = AcfArgs::from_args();
     let f = File::open(args.file)?;
-    let tokens = AcfTokenReader(f);
+    let tokens = AcfTokenStream::new(f);
     let w = JsonWriter {
         compact: args.compact,
         indent: args.indent,
