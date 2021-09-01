@@ -1,8 +1,7 @@
-use std::io::{Read, Error, ErrorKind, Result};
+use std::io::{self, Read, ErrorKind, Result};
 use std::convert::From;
 use std::str;
-use std::fmt;
-use std::error;
+use thiserror::Error;
 
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -11,64 +10,22 @@ pub enum AcfToken {
     DictStart,
     DictEnd,
 }
-#[derive(Debug)]
-pub struct UnexpectedCharacter(pub char);
-impl error::Error for UnexpectedCharacter {}
-impl fmt::Display for UnexpectedCharacter {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unexpected Character '{:?}'", self.0)
+#[derive(Debug, Error)]
+pub enum TokenError {
+    #[error("Unexpected Character '{0:?}'")]
+    UnexpectedCharacter(char),
+    #[error("Unexpected Token {0:?}")]
+    UnexpectedToken(AcfToken),
+    #[error("Unterminated String literal")]
+    UnterminatedString,
+    #[error("Path not found {0:?}")]
+    PathNotFound(Vec<String>),
+}
+impl From<TokenError> for io::Error {
+    fn from(err: TokenError) -> Self {
+        io::Error::new(ErrorKind::InvalidData, err)
     }
 }
-impl From<UnexpectedCharacter> for Error {
-    fn from(err: UnexpectedCharacter) -> Self {
-        Error::new(ErrorKind::InvalidData, err)
-    }
-}
-#[derive(Debug)]
-pub struct UnexpectedToken(pub AcfToken);
-impl error::Error for UnexpectedToken {}
-impl fmt::Display for UnexpectedToken {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unexpected Token {:?}", self.0)
-    }
-}
-impl From<UnexpectedToken> for Error {
-    fn from(err: UnexpectedToken) -> Self {
-        Error::new(ErrorKind::InvalidData, err)
-    }
-}
-#[derive(Debug)]
-pub struct UnterminatedString;
-impl error::Error for UnterminatedString {}
-impl fmt::Display for UnterminatedString {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unterminated String literal")
-    }
-}
-impl From<UnterminatedString> for Error {
-    fn from(err: UnterminatedString) -> Self {
-        Error::new(ErrorKind::InvalidData, err)
-    }
-}
-
-#[derive(Debug)]
-pub struct PathNotFound(pub Vec<String>);
-impl error::Error for PathNotFound {}
-impl fmt::Display for PathNotFound {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Path not found ")?;
-        for p in &self.0 {
-            write!(f, ".{}", p)?;
-        }
-        Ok(())
-    }
-}
-impl From<PathNotFound> for Error {
-    fn from(err: PathNotFound) -> Self {
-        Error::new(ErrorKind::InvalidData, err)
-    }
-}
-
 
 pub struct AcfTokenStream<R: Read>{
     read: R,
@@ -93,20 +50,20 @@ impl<R: Read> AcfTokenStream<R> {
             }
             Some('"') => parse_str(&mut self.read)
                 .map(|o| o.map(AcfToken::String)),
-            Some(c) => Err(UnexpectedCharacter(c).into()),
+            Some(c) => Err(TokenError::UnexpectedCharacter(c).into()),
             None => Ok(None)
         }
     }
     pub fn expect_next(&mut self) -> Result<AcfToken> {
         let t = self.try_next()?;
-        t.ok_or(Error::new(ErrorKind::UnexpectedEof, ""))
+        t.ok_or(io::Error::new(ErrorKind::UnexpectedEof, ""))
     }
     pub fn expect(&mut self, token: AcfToken) -> Result<()> {
         let t = self.expect_next()?;
         if t == token {
             Ok(())
         } else {
-            Err(UnexpectedToken(t).into())
+            Err(TokenError::UnexpectedToken(t).into())
         }
     }
     pub fn select(&mut self, target: impl AsRef<str>) -> Result<Option<()>> {
@@ -147,7 +104,7 @@ impl<R: Read> AcfTokenStream<R> {
                 .map(|s| s.as_ref().to_owned())
                 .collect();
         let r = self.try_select_path(path_vec.clone())?;
-        r.ok_or_else(|| Error::from(PathNotFound(path_vec)))
+        r.ok_or_else(|| io::Error::from(TokenError::PathNotFound(path_vec)))
     }
     pub fn close_dict(&mut self) -> Result<()> {
         self.skip_to_depth(self.depth - 1)
@@ -186,13 +143,13 @@ fn parse_str<R: Read>(mut reader: R) -> Result<Option<String>> {
         match next_char(&mut reader)? {
             Some('"') => {
                 return str::from_utf8(&buf)
-                    .map_err(|e| Error::new(ErrorKind::Other, e))
+                    .map_err(|e| io::Error::new(ErrorKind::Other, e))
                     .map(str::to_owned)
                     .map(Some);
             }
             // TODO: handle escape sequences and utf8?
             Some(c) => buf.push(c as u8),
-            None => { return Err(UnterminatedString.into()); }
+            None => { return Err(TokenError::UnterminatedString.into()); }
         }
     }
 }

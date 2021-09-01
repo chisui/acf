@@ -9,7 +9,7 @@ use std::process::{Command, Stdio};
 use std::fs::File;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use steamacf::{AcfTokenStream, AcfToken, UnexpectedToken};
+use steamacf::{AcfTokenStream, AcfToken, TokenError};
 
 
 #[derive(Debug, StructOpt)]
@@ -103,7 +103,7 @@ impl SteamLaunchCtx {
             if let Some(_) = tokens.select("name")? {
                 match tokens.expect_next()? {
                     AcfToken::String(name) => { reg.insert(name, id); },
-                    t => { return Err(UnexpectedToken(t).into()); },
+                    t => { return Err(TokenError::UnexpectedToken(t).into()); },
                 }
                 tokens.close_dict()?;
             }
