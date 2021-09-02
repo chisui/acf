@@ -2,7 +2,7 @@ use std::io;
 use std::env;
 use std::str;
 use std::collections::HashMap;
-use std::process::{Command, Stdio};
+use std::process::{self, Command, Stdio};
 use std::fs::File;
 use std::path::PathBuf;
 
@@ -18,7 +18,9 @@ pub enum SteamLaunchError {
     #[error("Generic I/O error: {0}")]
     Io(#[from] io::Error),
     #[error("password command failed unexpectedly: {0:?}")]
-    PasswordCmdFailed(String),
+    PasswordCmdFailed(String, i32),
+    #[error("Child failed")]
+    ChildFailed(i32),
 }
 type Res<A> = Result<A, SteamLaunchError>;
 
@@ -42,7 +44,7 @@ struct SteamLaunchArgs {
     cmd: SteamLaunchCmds
 }
 impl SteamLaunchArgs {
-    fn exec(&self) -> Res<i32> {
+    fn exec(&self) -> Res<()> {
         let steam_dir = steam_dir(&self.steam_dir)?;
         
         self.cmd.exec(SteamLaunchCtx {
@@ -77,14 +79,14 @@ impl SteamLaunchCtx {
         match &self.password_cmd {
             Some(cmd) => {
                 let output = Command::new(cmd).output()?;
-                if let Some(_) = output.status.code() {
+                if let Some(status) = output.status.code() {
                     Err(match str::from_utf8(&output.stderr) {
-                        Ok(err) => SteamLaunchError::PasswordCmdFailed(err.to_string()),
-                        Err(_)  => SteamLaunchError::PasswordCmdFailed("failed with unreadable error message".to_string()),
+                        Ok(err) => SteamLaunchError::PasswordCmdFailed(err.to_string(), status),
+                        Err(_)  => SteamLaunchError::PasswordCmdFailed("failed with unreadable error message".to_string(), status),
                     })
                 } else {
                     let raw = str::from_utf8(&output.stdout)
-                        .map_err(|_| SteamLaunchError::PasswordCmdFailed("malformed output".to_string()))?;
+                        .map_err(|_| SteamLaunchError::PasswordCmdFailed("malformed output".to_string(), 1))?;
                     Ok(Some(raw.trim().to_owned()))
                 }
             },
@@ -124,10 +126,10 @@ enum SteamLaunchCmds {
     Completion(CompletionCmd),
 }
 trait Cmd {
-    fn exec(&self, ctx: SteamLaunchCtx) -> Res<i32>;
+    fn exec(&self, ctx: SteamLaunchCtx) -> Res<()>;
 }
 impl Cmd for SteamLaunchCmds {
-    fn exec(&self, ctx: SteamLaunchCtx) -> Res<i32> {
+    fn exec(&self, ctx: SteamLaunchCtx) -> Res<()> {
         match self {
             SteamLaunchCmds::Start(cmd)      => cmd.exec(ctx),
             SteamLaunchCmds::List(cmd)       => cmd.exec(ctx),
@@ -142,19 +144,19 @@ enum CompletionCmd {
     Zsh,
 }
 impl Cmd for CompletionCmd {
-    fn exec(&self, _: SteamLaunchCtx) -> Res<i32> {
+    fn exec(&self, _: SteamLaunchCtx) -> Res<()> {
         println!("{:?}", self);
-        Ok(0)
+        Ok(())
     }
 }
 
 #[derive(Debug, StructOpt)]
 struct ListCmd {}
 impl Cmd for ListCmd {
-    fn exec(&self, ctx: SteamLaunchCtx) -> Res<i32> {        
+    fn exec(&self, ctx: SteamLaunchCtx) -> Res<()> {        
         let registry = ctx.load_registry()?;
         print!("{:?}", registry);
-        Ok(0)
+        Ok(())
     }
 }
 
@@ -170,7 +172,7 @@ struct StartCmd {
     args: Vec<String>,
 }
 impl Cmd for StartCmd {
-    fn exec(&self, ctx: SteamLaunchCtx) -> Res<i32> {
+    fn exec(&self, ctx: SteamLaunchCtx) -> Res<()> {
         let app_id = self.app.clone();
         let mut cmd = Command::new("echo");
         if let Some((user, password)) = ctx.login()? {
@@ -184,7 +186,11 @@ impl Cmd for StartCmd {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()?;
-        Ok(out.status.code().unwrap_or(0))
+        if let Some(s) = out.status.code() {
+            Err(SteamLaunchError::ChildFailed(s))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -201,11 +207,15 @@ fn steam_dir(steam_dir: &Option<PathBuf>) -> Res<PathBuf> {
 }
 
 fn main() {
-    std::process::exit(match SteamLaunchArgs::from_args().exec() {
-        Ok(status) => status,
+    process::exit(match SteamLaunchArgs::from_args().exec() {
+        Ok(_) => 0,
         Err(e) => {
-            println!("{:?}", e);
-            1
+            println!("{}", e);
+            match e {
+                SteamLaunchError::PasswordCmdFailed(_, i) => i,
+                SteamLaunchError::ChildFailed(i) => i,
+                _ => 1,
+            }
         }
-    });
+    })
 }
