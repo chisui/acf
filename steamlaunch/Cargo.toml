@@ -18,3 +18,4 @@ path = "src/main.rs"
 [dependencies]
 steamacf = { version = "0.2.0", path = "../" }
 structopt = "0.3"
+thiserror = "1.0.28"
