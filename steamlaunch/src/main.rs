@@ -6,9 +6,11 @@ use std::process::{self, Command, Stdio};
 use std::fs::File;
 use std::path::PathBuf;
 
-use structopt::StructOpt;
+use clap::Clap;
 use thiserror::Error;
 use steamacf::{AcfTokenStream, AcfToken, StreamError};
+mod cli;
+use crate::cli::{SteamLaunchArgs, SteamLaunchCmds, ListCmd, StartCmd};
 
 
 #[derive(Debug, Error)]
@@ -24,25 +26,6 @@ pub enum SteamLaunchError {
 }
 type Res<A> = Result<A, SteamLaunchError>;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "steam-launch",
-    about = "launch steam games from the command line"
-)]
-struct SteamLaunchArgs {
-    #[structopt(parse(from_os_str), short="s", long="steam-dir")]
-    steam_dir: Option<PathBuf>,
-
-    #[structopt(short, long, env="STEAM_USER")]
-    user: Option<String>,
-    #[structopt(short, long)]
-    password: Option<String>,
-    #[structopt(short="x", long="password-cmd", env="STEAM_PASSWORD_CMD")]
-    password_cmd: Option<String>,
-
-    #[structopt(subcommand)]
-    cmd: SteamLaunchCmds
-}
 impl SteamLaunchArgs {
     fn exec(&self) -> Res<()> {
         let steam_dir = steam_dir(&self.steam_dir)?;
@@ -119,12 +102,7 @@ impl SteamLaunchCtx {
 #[derive(Debug)]
 struct SteamRegistry(HashMap<String, String>);
 
-#[derive(Debug, StructOpt)]
-enum SteamLaunchCmds {
-    Start(StartCmd),
-    List(ListCmd),
-    Completion(CompletionCmd),
-}
+
 trait Cmd {
     fn exec(&self, ctx: SteamLaunchCtx) -> Res<()>;
 }
@@ -133,44 +111,29 @@ impl Cmd for SteamLaunchCmds {
         match self {
             SteamLaunchCmds::Start(cmd)      => cmd.exec(ctx),
             SteamLaunchCmds::List(cmd)       => cmd.exec(ctx),
-            SteamLaunchCmds::Completion(cmd) => cmd.exec(ctx),
         }
     }
 }
 
-#[derive(Debug, StructOpt)]
-enum CompletionCmd {
-    Bash,
-    Zsh,
-}
-impl Cmd for CompletionCmd {
-    fn exec(&self, _: SteamLaunchCtx) -> Res<()> {
-        println!("{:?}", self);
-        Ok(())
-    }
-}
-
-#[derive(Debug, StructOpt)]
-struct ListCmd {}
 impl Cmd for ListCmd {
     fn exec(&self, ctx: SteamLaunchCtx) -> Res<()> {        
-        let registry = ctx.load_registry()?;
-        print!("{:?}", registry);
+        let SteamRegistry(registry) = ctx.load_registry()?;
+        let max_key_len = registry
+            .keys()
+            .map(|k| k.len())
+            .max()
+            .unwrap_or_default();
+        for (k, v) in registry {
+            print!("{}", k);
+            for _ in 0 .. (2 + max_key_len - k.len()) {
+                print!(" ");
+            }
+            println!("{}", v);
+        }
         Ok(())
     }
 }
 
-#[derive(Debug, StructOpt)]
-struct StartCmd {
-    #[structopt(parse(from_os_str), short="s", long="steam-dir")]
-    steam_dir: Option<PathBuf>,
-
-    #[structopt()]
-    app: String,
-
-    #[structopt()]
-    args: Vec<String>,
-}
 impl Cmd for StartCmd {
     fn exec(&self, ctx: SteamLaunchCtx) -> Res<()> {
         let app_id = self.app.clone();
@@ -207,7 +170,7 @@ fn steam_dir(steam_dir: &Option<PathBuf>) -> Res<PathBuf> {
 }
 
 fn main() {
-    process::exit(match SteamLaunchArgs::from_args().exec() {
+    process::exit(match SteamLaunchArgs::parse().exec() {
         Ok(_) => 0,
         Err(e) => {
             println!("{}", e);
