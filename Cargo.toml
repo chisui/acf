@@ -1,17 +1,7 @@
-[package]
-name = "steamacf"
-license = "MIT OR Apache-2.0"
-description = "Tool to convert Steam .acf files to JSON."
-homepage = "https://github.com/chisui/acf"
-repository = "https://github.com/chisui/acf"
-documentation = "https://github.com/chisui/acf"
-readme = "README.md"
-version = "0.2.0"
-edition = "2018"
-keywords = ["steam", "acf", "json"]
-categories = ["command-line-utilities", "config", "games"]
+[workspace]
 
-[lib]
-
-[dependencies]
-thiserror = "1.0.28"
+members = [
+    "steamacf",
+    "steamacfbin",
+    "steamlaunch",
+]
