@@ -4,10 +4,20 @@
     ];
   }
 }:
-pkgs.mkShell {
+with pkgs;
+let
+  rust-channel = rustChannelOf {
+    date = "2021-08-15";
+    channel = "nightly";
+  };
+in mkShell {
   name = "acf";
   buildInputs = [
-    pkgs.latest.rustChannels.nightly.rust
-    pkgs.rls
+    (rust-channel.rust.override {
+      extensions = [
+        "rust-src"
+        "rls-preview"
+      ];
+    })
   ];
 }

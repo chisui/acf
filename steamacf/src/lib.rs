@@ -39,7 +39,7 @@ pub enum StreamError {
     PathNotFound(Vec<String>),
 }
 
-type Res<A> = Result<A, StreamError>;
+pub type Res<A> = Result<A, StreamError>;
 
 pub struct AcfTokenStream<R> {
     read: R,

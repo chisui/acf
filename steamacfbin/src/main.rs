@@ -32,5 +32,10 @@ fn main() -> Result<()> {
         compact: args.compact,
         indent: args.indent,
     };
-    w.write(tokens, io::stdout())
+    if let Err(err) = w.write(tokens, io::stdout()) {
+        println!("{}", err);
+        std::process::exit(1);
+    } else {
+        Ok(())
+    }
 }

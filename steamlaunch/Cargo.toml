@@ -16,7 +16,7 @@ name = "steam-launch"
 path = "src/main.rs"
 
 [dependencies]
-steamacf = { version = "0.2.0", path = "../" }
+steamacf = { version = "0.2.0", path = "../steamacf" }
 clap = "3.0.0-beta.4"
 thiserror = "1.0.28"
 
