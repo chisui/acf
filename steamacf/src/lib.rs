@@ -38,6 +38,15 @@ pub enum StreamError {
     #[error("Path not found {}", format_path(&.0[..]))]
     PathNotFound(Vec<String>),
 }
+impl From<StreamError> for io::Error {
+    fn from(err: StreamError) -> Self {
+        match err {
+            StreamError::Io(ie) => ie,
+            StreamError::Parse(pe) => io::Error::new(ErrorKind::Other, pe),
+            e => io::Error::new(ErrorKind::Other, e),
+        }
+    }
+}
 
 pub type Res<A> = Result<A, StreamError>;
 

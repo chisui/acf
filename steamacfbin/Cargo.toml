@@ -17,4 +17,4 @@ path = "src/main.rs"
 
 [dependencies]
 steamacf = { version = "0.2.0", path = "../steamacf" }
-structopt = "0.3"
+clap = "3.0.0-beta.4"
