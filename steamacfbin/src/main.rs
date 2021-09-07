@@ -1,8 +1,10 @@
-use std::io::{self, Write, Result, Error};
-use std::fs::File;
-use std::path::PathBuf;
+use std::{
+    io::{self, Write, Error, ErrorKind},
+    fs::File,
+    path::PathBuf,
+};
 use clap::Clap;
-use steamacf::AcfTokenStream;
+use steamacf::{AcfTokenStream};
 mod json;
 use crate::json::JsonWriterCfg;
 
@@ -44,13 +46,13 @@ struct AcfArgs {
 }
 
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Error> {
     let args = AcfArgs::parse();
     let f = File::open(args.file)?;
     let tokens = AcfTokenStream::new(f);
     let cfg = JsonWriterCfg::from(args.format);
     let mut out = io::stdout();
     json::pipe_to_json(cfg, tokens, &mut out)
-        .map_err(Error::from)?;
+        .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
     out.write_all(b"\n")
 }

@@ -1,12 +1,16 @@
-use std::io::{Write, Error, ErrorKind};
-use steamacf::{AcfToken, StreamError, Res};
+use std::io::Write;
+use steamacf::{AcfToken, StreamError, ParseError};
 mod writer;
 use crate::json::writer::JsonWriter;
 
 pub use crate::json::writer::JsonWriterCfg;
 
 
-pub fn pipe_to_json<I: Iterator<Item = Res<AcfToken>>, W: Write>(cfg: JsonWriterCfg, iter: I, out: W) -> Res<()> {
+pub fn pipe_to_json<I, W>(cfg: JsonWriterCfg, iter: I, out: W) -> Result<(), StreamError> 
+where
+    I: Iterator<Item = Result<AcfToken, ParseError>>,
+    W: Write,
+{
     Pipe {
         iter,
         out: JsonWriter::new(cfg, out),
@@ -16,9 +20,11 @@ struct Pipe<I, W> {
     iter: I,
     out: JsonWriter<W>,
 }
-impl<I: Iterator<Item = Res<AcfToken>>, W: Write> Pipe<I, W> {
-    fn write_object(&mut self) -> Res<()> {
-        self.out.begin_obj()?;
+impl<I: Iterator<Item = Result<AcfToken, ParseError>>, W: Write> Pipe<I, W> {
+    fn write_object(&mut self) -> Result<(), StreamError> {
+        self.out.begin_obj()
+            .map_err(ParseError::from)
+            .map_err(StreamError::from)?;
         let mut is_not_first = false;
         loop {
             let t = match self.iter.next() {
@@ -31,22 +37,27 @@ impl<I: Iterator<Item = Res<AcfToken>>, W: Write> Pipe<I, W> {
                 t => Err(StreamError::UnexpectedToken(t)),
             }?;
             if is_not_first {
-                self.out.end_field()?;
+                self.out.end_field()
+                    .map_err(ParseError::from)
+                    .map_err(StreamError::from)?;
             } else {
                 is_not_first = true;
             }
-            self.out.begin_field(n)?;
+            self.out.begin_field(n)
+                .map_err(ParseError::from)
+                .map_err(StreamError::from)?;
             let v = self.iter.next()
-                .ok_or(Error::new(ErrorKind::UnexpectedEof, "expected value"))?;
+                .ok_or(StreamError::from(ParseError::UnexpectedEof))?;
             match v? {
                 AcfToken::String(s) => self.out.string_value(s)
+                    .map_err(ParseError::from)
                     .map_err(StreamError::from),
-                AcfToken::DictStart => self.write_object()
-                    .map_err(StreamError::from),
+                AcfToken::DictStart => self.write_object(),
                 t => Err(StreamError::UnexpectedToken(t)),
             }?;
         }
         self.out.end_obj()
+            .map_err(ParseError::from)
             .map_err(StreamError::from)
     }
 }

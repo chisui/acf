@@ -1,14 +1,15 @@
-use std::io;
-use std::env;
-use std::str;
-use std::collections::HashMap;
-use std::process::{self, Command, Stdio};
-use std::fs::File;
-use std::path::PathBuf;
-
+use std::{
+    io,
+    env,
+    str,
+    collections::HashMap,
+    process::{self, Command, Stdio},
+    fs::File,
+    path::PathBuf,
+};
 use clap::Clap;
 use thiserror::Error;
-use steamacf::{AcfTokenStream, AcfToken, StreamError};
+use steamacf::{AcfTokenStream, AcfToken, StreamError, StructuredAcfTokenStream};
 mod cli;
 use crate::cli::{SteamLaunchArgs, SteamLaunchCmds, ListCmd, StartCmd};
 
@@ -81,7 +82,7 @@ impl SteamLaunchCtx {
         reg_file.push("registry.vdf");
         
         let f = File::open(reg_file)?;
-        let mut tokens = AcfTokenStream::new(f);
+        let mut tokens = StructuredAcfTokenStream::new(AcfTokenStream::new(f));
         tokens.select_path(&["Registry", "HKCU", "Software", "Valve", "Steam", "Apps"])?;
 
         tokens.expect(AcfToken::DictStart)?;

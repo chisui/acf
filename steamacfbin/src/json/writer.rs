@@ -1,5 +1,7 @@
-use std::io::{Write, Result};
-use std::str;
+use std::{
+    io::{Write, Result},
+    str,
+};
 
 
 #[derive(Clone, Copy)]
